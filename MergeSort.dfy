@@ -69,9 +69,17 @@ method Merge(b: array<int>, c: array<int>, d: array<int>)
 	ensures Sorted(b) && multiset(b[..]) == multiset(c[..])+multiset(d[..])
 	modifies b
 	{
-		assert(MergeIterationInvariant(b, c, d, 0, 0));
+		// Weaken precondition
+		IteratePreconditionLemma(b, c, d);
 		Iterate(b, c, d, 0, 0);
 	}
+
+lemma IteratePreconditionLemma(b: array<int>, c: array<int>, d: array<int>)
+	requires b != c && b != d && b.Length == c.Length + d.Length
+	requires Sorted(c) && Sorted(d)
+	ensures MergeIterationInvariant(b, c, d, 0, 0) 
+{
+}
 
 predicate MergeIterationInvariant(b: array<int>, c: array<int>, d: array<int>, i : nat, j:nat)
 	reads(b)
@@ -89,19 +97,19 @@ predicate MergeIterationInvariant(b: array<int>, c: array<int>, d: array<int>, i
 	&& (i < c.Length ==> forall x :: 0 <= x < i + j ==> b[x] <= c[i])
 	&& (j < d.Length ==> forall x :: 0 <= x < i + j ==> b[x] <= d[j])
 	
-	// SortedSequence(b[..i+j]) could not be safely inlined
-	&& (forall x :: x == i+j ==> SortedSequence(b[..x]))
+	&& SortedSequence(b[..i+j])
+//	&& (forall x :: x == i+j ==> SortedSequence(b[..x]))
 
 	&& multiset(b[..i+j]) == multiset(c[..i])+multiset(d[..j])
 }
 
-method {:verify false} Iterate(b: array<int>, c: array<int>, d: array<int>, i0 : nat, j0:nat)
+method {:verify true} Iterate(b: array<int>, c: array<int>, d: array<int>, i0 : nat, j0:nat)
 	requires MergeIterationInvariant(b, c, d, i0, j0)
 	modifies b
 	ensures Sorted(b) && multiset(b[..]) == multiset(c[..])+multiset(d[..])
 
 	{
-		var i, j := i0, j0;
+		var i: nat, j: nat := i0, j0;
 
 		while i+j < b.Length
 			invariant MergeIterationInvariant(b, c, d, i, j);
@@ -110,19 +118,37 @@ method {:verify false} Iterate(b: array<int>, c: array<int>, d: array<int>, i0 :
 				i, j := MergeIterateStep(b, c, d, i, j);
 			}
 
-	// lemma that proves that inv + !guard => post		
+		// Strengthen postcondition
+		IteratePostcondition(b, c, d, i, j);
+			
 	}
 
+lemma IteratePostcondition(b: array<int>, c: array<int>, d: array<int>, i : nat, j:nat)
+	requires MergeIterationInvariant(b, c, d, i, j)
+	requires i + j >= b.Length
+	ensures Sorted(b) && multiset(b[..]) == multiset(c[..])+multiset(d[..])
+	{
+		assert(multiset(b[..i+j]) == multiset(c[..i])+multiset(d[..j]));
+		assert(i + j == b.Length);
+		assert(i == c.Length);
+		assert(j == d.Length);
+
+		assert(c[..] == c[..i]);
+		assert(d[..] == d[..j]);
+		assert(b[..] == b[.. i + j]);
+		
+	}
 
 method MergeIterateStep(b: array<int>, c: array<int>, d: array<int>, i0 : nat, j0:nat) returns (i:nat, j:nat)
 	requires b.Length > i0 + j0
 	requires MergeIterationInvariant(b, c, d, i0, j0)
 	ensures MergeIterationInvariant(b, c, d, i, j)
+	ensures i + j > i0 + j0
 	
 	modifies b
 
 {
-	// todo: seperate to a weaken precondition function?
+	// Weaken precondition
 	MergeLoopLemma(b, c, d, i0, j0);
 
 	if i0 == c.Length
@@ -154,15 +180,12 @@ method TakeFromC(b: array<int>, c: array<int>, d: array<int>, i0 : nat, j0:nat) 
 	requires i0 < c.Length
 	requires j0 == d.Length || d[j0] >= c[i0]
 	ensures MergeIterationInvariant(b, c, d, i, j)
+	ensures i + j > i0 + j0
 
 	modifies b
 	{
-		assert(MergeIterationInvariant(b, c, d, i0, j0));
-
-		// TODO: prove
+		// Leading assignment
 		b[i0 + j0] := c[i0];
-
-		assert(MergeIterationInvariant(b, c, d, i0, j0));
 
 		TakeFromCLemma(b, c, d, i0, j0);
 		i, j := i0 + 1, j0;
@@ -173,13 +196,11 @@ method TakeFromD(b: array<int>, c: array<int>, d: array<int>, i0 : nat, j0:nat) 
 	requires j0 < d.Length
 	requires i0 == c.Length || c[i0] >= d[j0]
 	ensures MergeIterationInvariant(b, c, d, i, j)
+	ensures i + j > i0 + j0
 
 	modifies b
 	{	
-		assert(MergeIterationInvariant(b, c, d, i0, j0));
-		ghost var k := i0+j0;
-
-		// TODO: prove
+		// Leading assignment
 		b[i0 + j0] := d[j0];
 		
 		TakeFromDLemma(b, c, d, i0, j0);
