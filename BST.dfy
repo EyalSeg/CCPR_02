@@ -52,26 +52,48 @@ method BuildBST(q: seq<int>) returns (t: Tree)
 	requires NoDuplicates(q)
 	ensures BST(t) && NumbersInTree(t) == NumbersInSequence(q)
     {
-        t := Empty;
-        var i := 0;
+        assert(BuildBST_Invariant(q, 0, Empty));
+        var i, t0 := 0, Empty;
 
-        while i < |q|
-            invariant i <= |q|
-            invariant NumbersInTree(t) == NumbersInSequence(q[..i])
-            invariant BST(t)
-            decreases |q| - i
+        i, t := BuildBST_Iterate(q, i, t0);
+        StrengthenPost_BuildBST_Iterate(q, i, t);
+    }
+
+lemma StrengthenPost_BuildBST_Iterate(q : seq<int>, i: nat, t: Tree)
+    requires i >= |q| && BuildBST_Invariant(q, i, t);
+    ensures BST(t) && NumbersInTree(t) == NumbersInSequence(q)
+{
+
+}
+
+method BuildBST_Iterate(q: seq<int>, i0 :nat, t0: Tree) returns (i: nat, t:Tree)
+    requires NoDuplicates(q)
+    requires BuildBST_Invariant(q, i0, t0)
+    ensures i >= |q| && BuildBST_Invariant(q, i, t);
+{
+    i := i0;
+    t := t0;
+        
+    while i < |q|
+        invariant BuildBST_Invariant(q, i, t)
+        decreases |q| - i
         {
             t := InsertBST(t, q[i]);
             i := i + 1;
         }
-    }
+    
+}
 
-
-
+predicate BuildBST_Invariant(q: seq<int>, i : nat, t: Tree)
+{
+    i <= |q| &&
+    NumbersInTree(t) == NumbersInSequence(q[..i]) &&
+    BST(t)
+}
 method InsertBST(t0: Tree, x: int) returns (t: Tree)
 	requires BST(t0) && x !in NumbersInTree(t0)
 	ensures BST(t) && NumbersInTree(t) == NumbersInTree(t0)+{x}
-    decreases |Inorder(t0)|, 1
+    decreases |Inorder(t0)|, 4
     {
         match t0 {
 		case Empty => t := Node(x, Empty, Empty);
@@ -83,35 +105,103 @@ method InsertBST_NonEmpty(y:int, left0:Tree, right0:Tree, x: int) returns (t: Tr
 	requires BST(Node(y, left0, right0)) && x !in NumbersInTree(Node(y, left0, right0))
     ensures BST(t) 
     ensures NumbersInTree(t) == NumbersInTree(Node(y, left0, right0))+{x}
-    decreases |Inorder(Node(y, left0, right0))|, 0
+    decreases |Inorder(Node(y, left0, right0))|, 3
     {
+        // Weaken precondition
+
         LemmaBinarySearchSubtree(y, left0, right0);
+        RootGreaterThanLeftSubtree(y, left0, right0);
+        RootLesserThanRightSubtree(y, left0, right0);
 
-        if (x > y)
+       t := InsertBST_NonEmptyb(y, left0, right0, x);
+    }
+
+method InsertBST_NonEmptyb(y:int, left0:Tree, right0:Tree, x: int) returns (t: Tree)
+	requires BST(Node(y, left0, right0)) && x !in NumbersInTree(Node(y, left0, right0))
+    requires BST(left0) && BST(right0)
+    requires forall i :: i in NumbersInTree(right0) ==> i > y
+    requires forall i :: i in NumbersInTree(left0) ==> i < y
+
+    ensures BST(t) 
+    ensures NumbersInTree(t) == NumbersInTree(Node(y, left0, right0))+{x}
+    decreases |Inorder(Node(y, left0, right0))|, 2
+    {
+        var left, right := InsertToSubtree(y, left0, right0, x);
+
+        LemmaInsertNonempty(y, left, right);
+        t := Node(y, left, right);
+    }
+
+lemma LemmaInsertNonempty(y: int, left:Tree, right:Tree)
+    requires BST(left) && BST(right)
+    requires Ascending(Inorder(Node(y, left, right)))
+    
+    ensures BST(Node(y, left, right))
+{
+
+}
+
+method InsertToSubtree(y:int, left0:Tree, right0:Tree, x: int) returns (left: Tree, right: Tree)
+	requires BST(Node(y, left0, right0)) && x !in NumbersInTree(Node(y, left0, right0))
+    requires BST(left0) && BST(right0)
+    requires forall i :: i in NumbersInTree(right0) ==> i > y
+    requires forall i :: i in NumbersInTree(left0) ==> i < y
+
+    ensures BST(right) && BST(left)
+    ensures NumbersInTree(Node(y, left0, right0))+{x}
+         == NumbersInTree(left) + NumbersInTree(right) + {y}
+    ensures Ascending(Inorder(Node(y, left, right)))
+
+    decreases |Inorder(Node(y, left0, right0))|, 1
+{
+    if (x > y)
         {
-            var right := InsertBST(right0, x);
-
-            RootGreaterThanLeftSubtree(y, left0, right0);
-            RootLesserThanRightSubtree(y, left0, right0);
-            
-            LemmaJoinTrees(y, left0, right);
-            
-            t := Node(y, left0, right);
+            left, right := InsertToRightSubtree(y, left0, right0, x);
         }
         else
         {
-            var left := InsertBST(left0, x);
-
-            RootGreaterThanLeftSubtree(y, left0, right0);
-            RootLesserThanRightSubtree(y, left0, right0);
-
-            LemmaJoinTrees(y, left, right0);
-
-            assert(Ascending(Inorder(left) + [y] + Inorder(right0)));
-            assert(BST(Node(y, left, right0)));
-
-            t := Node(y, left, right0);
+            left, right := InsertToLeftSubtree(y, left0, right0, x);
         }
+}
+
+method InsertToRightSubtree(y:int, left0:Tree, right0:Tree, x: int) returns (left: Tree, right: Tree)
+	requires BST(Node(y, left0, right0)) && x !in NumbersInTree(Node(y, left0, right0))
+    requires BST(left0) && BST(right0)
+    requires forall i :: i in NumbersInTree(right0) ==> i > y
+    requires forall i :: i in NumbersInTree(left0) ==> i < y
+    requires x > y
+
+    ensures BST(right) && BST(left)
+    ensures NumbersInTree(Node(y, left0, right0))+{x}
+         == NumbersInTree(left) + NumbersInTree(right) + {y}
+    ensures Ascending(Inorder(Node(y, left, right)))
+
+    decreases |Inorder(Node(y, left0, right0))|, 0
+    {
+        right := InsertBST(right0, x);
+        LemmaJoinTrees(y, left0, right);
+
+        left := left0; 
+    }
+
+method InsertToLeftSubtree(y:int, left0:Tree, right0:Tree, x: int) returns (left: Tree, right: Tree)
+	requires BST(Node(y, left0, right0)) && x !in NumbersInTree(Node(y, left0, right0))
+    requires BST(left0) && BST(right0)
+    requires forall i :: i in NumbersInTree(right0) ==> i > y
+    requires forall i :: i in NumbersInTree(left0) ==> i < y
+    requires x < y
+
+    ensures BST(right) && BST(left)
+    ensures NumbersInTree(Node(y, left0, right0))+{x}
+         == NumbersInTree(left) + NumbersInTree(right) + {y}
+    ensures Ascending(Inorder(Node(y, left, right)))
+
+    decreases |Inorder(Node(y, left0, right0))|, 0
+    {
+        left := InsertBST(left0, x);
+        LemmaJoinTrees(y, left, right0);
+
+        right := right0; 
     }
 
 lemma {:verify true} LemmaJoinTrees(n : int, left:Tree, right:Tree)
