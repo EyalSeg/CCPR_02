@@ -13,38 +13,117 @@ method MergeSort(a: array<int>) returns (b: array<int>)
 	ensures b.Length == a.Length && Sorted(b) && multiset(a[..]) == multiset(b[..])
 	decreases a.Length, 1
 	{
-		if a.Length <= 1
+		if Guard1(a)
 		{
-			b := a;
+			b := Updateb1(a,b);
 		}
 		else
 		{
-			b := Merge_NotEmptyOrSingle(a);
+			b := Updateb2(a,b);
 		}
 	}
+predicate method Guard1(a: array<int>)
+{
+	a.Length <= 1
+}
+method Updateb1(a: array<int>,b0: array<int>) returns (b: array<int>)
+	requires Guard1(a)
+    ensures b.Length == a.Length && Sorted(b) && multiset(a[..]) == multiset(b[..])
+{   b:=b0;
+    // assignment
+	LemmaUpdateb1(a,b);
+	b := a;
+}
+lemma LemmaUpdateb1 (a:array<int>,b: array<int>)
+	requires Guard1(a)
+    ensures a.Length == a.Length && Sorted(a) && multiset(a[..]) == multiset(a[..])
+{}
+method Updateb2(a: array<int>,b0: array<int>) returns (b: array<int>)
+    decreases a.Length,1
+	requires !Guard1(a)
+    ensures b.Length == a.Length && Sorted(b) && multiset(a[..]) == multiset(b[..])
+{   b:=b0;
+    // assignment
+	// LemmaUpdateb2(a,b); // TODO Lemma
+	b := Merge_NotEmptyOrSingle(a,b);
+}
+// lemma LemmaUpdateb2 (a:array<int>,b: array<int>)
+// 	requires !Guard1(a)
+//     ensures b.Length == a.Length && Sorted(b) && multiset(a[..]) == multiset(b[..])
+// {}
 
-method Merge_NotEmptyOrSingle(a: array<int>) returns (b: array<int>)
+//----------------------------------------------------------------------------------------
+method Merge_NotEmptyOrSingle(a: array<int>,b0: array<int>) returns (b: array<int>)
 // todo: refine
-	requires a.Length > 1
+	requires !Guard1(a)
 	ensures b.Length == a.Length && Sorted(b) && multiset(a[..]) == multiset(b[..])
 	decreases a.Length, 0
-{
-	var mid := a.Length / 2;
-	var left, right := a[.. mid], a[mid..];
-
-	assert(a[..] == left[..] + right[..]);
-
-	var leftArr := SeqToArray(left);
-	var rightArr := SeqToArray(right);
-
-	assert(leftArr.Length < a.Length && rightArr.Length < a.Length);
-	
-	leftArr := MergeSort(leftArr);
-	rightArr := MergeSort(rightArr);
-
-	b := new int[a.Length];
-	Merge(b, leftArr, rightArr);
+{   
+	// introduce local variable
+	var  mid:nat, left:seq<int>, right:seq<int>,leftArr: array<int>,rightArr: array<int>;
+    leftArr,rightArr,mid:=init(a,b0,leftArr,rightArr,mid);
+	b:=merging (a,b0,leftArr,rightArr) ;
 }
+
+lemma LemmaUpdatebmid(a: array<int>,mid0:nat) 
+	requires !Guard1(a) 
+    ensures  a.Length / 2 == a.Length / 2;	
+{}
+method   UpdatebMid (a: array<int>,mid0:nat) returns (mid:nat)
+	 requires !Guard1(a)
+     ensures  mid == a.Length / 2;	
+{  	
+mid:=mid0;
+mid:=a.Length / 2;
+}
+lemma LemmaUpdateLeftarrRightarr(a: array<int>,b0: array<int>,leftArr: array<int>,rightArr: array<int>,mid:nat) 
+	requires !Guard1(a) && mid==a.Length/2
+    ensures mid < a.Length && a.Length-mid < a.Length && a[..]==a[..mid]+a[mid..]
+{}
+//---------------
+method  UpdatebLeftArrRightArr(a: array<int>,b0: array<int>,leftArr0: array<int>,rightArr0: array<int>,mid:nat) returns (leftArr: array<int>,rightArr: array<int>)
+	requires !Guard1(a)&& mid==a.Length/2
+    ensures leftArr.Length < a.Length && rightArr.Length < a.Length && 
+	 leftArr[..]+rightArr[..]==a[..]
+{  	
+	// var left:seq<int>, right:seq<int>,mid:nat;
+    // LemmaUpdatebleftRight(a,b0,right,left,mid);
+	//  left, right := UpdatebMidLeftRight(a,b0,right,left);
+	 leftArr :=UpdatebLeftArr(a,b0,leftArr,mid);
+	 rightArr := UpdatebRightArr(a,b0,rightArr,mid);
+
+}
+lemma LemmaUpdatebleftRight(a: array<int>,b0: array<int>,left:  seq<int>,right:  seq<int>,mid:nat) 
+	requires !Guard1(a) && mid == a.Length / 2;	
+    ensures a[..] ==  a[.. mid] +  a[mid..]
+{}
+
+
+method  UpdatebLeftArr (a: array<int>,b0: array<int>,leftArr0: array<int>,mid:nat) returns (left:array<int>)
+	requires !Guard1(a) && mid == a.Length / 2;	
+     ensures left[..] == a[.. mid]
+{  	
+left:=leftArr0;
+LemmaUpdateleftArr(a,b0,leftArr0,mid);
+ left:=SeqToArray(a[.. mid]);
+}
+lemma LemmaUpdateleftArr(a: array<int>,b0: array<int>,leftArr:array<int>,mid:nat) 
+	requires !Guard1(a) && mid == a.Length / 2;	
+     ensures a[.. mid] == a[.. mid]
+{}
+
+method  UpdatebRightArr (a: array<int>,b0: array<int>,rightArr0: array<int>,mid:nat) returns (rightArr:array<int>)
+	requires !Guard1(a) && mid == a.Length / 2;	
+     ensures rightArr[..] == a[ mid..]
+{  	
+rightArr:=rightArr0;
+LemmaUpdaterightArr(a,b0,rightArr0,mid);
+ rightArr:=SeqToArray(a[ mid..]);
+}
+lemma LemmaUpdaterightArr(a: array<int>,b0: array<int>,rightArr:array<int>,mid:nat) 
+	requires !Guard1(a) && mid == a.Length / 2;	
+     ensures a[ mid..] == a[ mid..]
+{}
 
 method SeqToArray(a: seq<int>) returns (b: array<int>)
 ensures a == b[..]
@@ -62,6 +141,34 @@ ensures a == b[..]
 	}
 }
 
+
+//-------------------------------------------------
+method  init (a:array<int>,b0: array<int>,leftArr0: array<int>,rightArr0: array<int>,mid0:nat) returns (leftArr: array<int>,rightArr: array<int>,mid:nat)
+	requires !Guard1(a) 
+	ensures  leftArr.Length < a.Length && rightArr.Length < a.Length && 
+	 leftArr[..]+rightArr[..]==a[..]
+
+{  mid,leftArr,rightArr:=mid0,leftArr0,rightArr0;
+	LemmaUpdatebmid(a,mid);
+    mid:=UpdatebMid(a,mid);
+    LemmaUpdateLeftarrRightarr(a,b0,leftArr,rightArr,mid);
+	 leftArr,rightArr :=UpdatebLeftArrRightArr(a,b0,leftArr,rightArr,mid);
+}
+//TODO:continue
+method  merging (a:array<int>,b0: array<int>,leftArr0: array<int>,rightArr0: array<int>) returns (b: array<int>)
+	requires !Guard1(a) &&  leftArr0.Length < a.Length && rightArr0.Length < a.Length && 
+	 leftArr0[..]+rightArr0[..]==a[..]
+	ensures b.Length == a.Length && Sorted(b) && multiset(a[..]) == multiset(b[..])
+	decreases a.Length, 0
+{  	var leftArr:array<int>,rightArr:array<int>;
+    leftArr:=leftArr0;
+	leftArr := MergeSort(leftArr0);
+	rightArr:=rightArr0;
+	rightArr := MergeSort(rightArr0);
+
+	b := new int[a.Length];
+	Merge(b, leftArr, rightArr);
+}
 
 method Merge(b: array<int>, c: array<int>, d: array<int>)
 	requires b != c && b != d && b.Length == c.Length + d.Length
