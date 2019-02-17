@@ -11,7 +11,7 @@ predicate Inv(a : seq<int>, heapsize : nat, i : nat, setToBe : multiset<int>)
 {
     heapsize <= |a| &&
     HeapExceptK(a, heapsize, i) &&
-    0 <= i < heapsize <= |a| &&
+    0 <= i < heapsize &&
     multiset(a[..heapsize]) == setToBe &&
     forall j :: 0 <= j < heapsize && AncestorIndex(i, j) ==> a[i] >= a[j]
 }
@@ -24,7 +24,7 @@ method HeapInsert(a: array<int>, heapsize: nat, x: int)
 	modifies a
 {
     // assingment
-    AddXToLeaf(a, heapsize, x);
+    AddItemToLeafLemma(a, heapsize, x);
     a[heapsize] := x;
 
     // introduce logical constant
@@ -32,6 +32,7 @@ method HeapInsert(a: array<int>, heapsize: nat, x: int)
     
     SiftLastItem(a, heapsize + 1, setToBe);
 }
+
 
 method SiftLastItem(a : array<int>, heapsize:nat,  ghost setToBe : multiset<int>)
     requires 0 < heapsize <= a.Length
@@ -47,7 +48,7 @@ method SiftLastItem(a : array<int>, heapsize:nat,  ghost setToBe : multiset<int>
         StrengthenPostFromIteration(a, heapsize, setToBe, i);
     }
 
-lemma AddXToLeaf(a : array<int>, heapsize:nat, itemToAdd : int)
+lemma AddItemToLeafLemma(a : array<int>, heapsize:nat, itemToAdd : int)
     requires heapsize < a.Length
 	requires hp(a[..], heapsize)
     ensures multiset(a[..heapsize+1][heapsize := itemToAdd][..heapsize + 1]) ==
@@ -87,6 +88,7 @@ method SiftLastItem_Iterate(a : array<int>, heapsize:nat, i0 : nat, ghost setToB
 {
     i := i0;
 
+    // Iteration
      while i > 0
         invariant Inv(a[..], heapsize, i, setToBe)
         decreases i
@@ -106,6 +108,7 @@ method {:verify true} LoopBody (a : array<int>, heapsize:nat, i0 : nat, ghost se
 {
     var ancestor := (i0 - 1) / 2;
 
+    // alternation
     if (a[i0] > a[ancestor])
     {
         i := Swap(a, heapsize, i0, setToBe);
@@ -127,7 +130,9 @@ method Swap (a : array<int>, heapsize:nat, i0 : nat, ghost setToBe : multiset<in
     modifies a
     {
         LemmaSwap(a[..], heapsize, i0, setToBe);
-        a[i0], a[((i0 - 1) / 2)], i := a[(i0 - 1) / 2], a[i0], ((i0 - 1) / 2);
+        
+        var ancestor := (i0 - 1) / 2; // for readability purposes
+        a[i0], a[ancestor], i := a[ancestor], a[i0], (ancestor);
     } 
 
 method Skip(a : array<int>, heapsize:nat, i0 : nat, ghost setToBe : multiset<int>) returns (i : nat)
@@ -222,17 +227,73 @@ predicate DirectAncestor(ancestor : nat, i : nat)
     (i - 1) / 2 == ancestor
 }
 
+lemma LemmaMutualAncestors(i : nat, j : nat, k : nat)
+    requires AncestorIndex(i, k)
+    requires AncestorIndex(j, k)
+    requires DirectAncestor(j, k)
+    requires i <= j
+
+    decreases j - i
+
+    ensures AncestorIndex(i, j)
+    {
+        if i == j
+        {
+            // trivial
+        } 
+        else if i == 0
+        {
+            // the root is the ancestor of every item
+        }
+        else
+        {
+            assert AncestorIndex(2 * i + 1, k) || AncestorIndex(2 * i + 2, k);
+            if AncestorIndex(2 * i + 1, k)
+            {
+                LemmaMutualAncestors(2 * i + 1, j, k);
+                LemmaTransitiveAncestors(i, 2 * i + 1, j);
+                
+            }
+            else
+            {
+                assert AncestorIndex(2 * i + 2, k);
+                LemmaMutualAncestors(2 * i + 2, j, k);
+                LemmaTransitiveAncestors(i, 2 * i + 2, j);
+            }
+
+        }
+    }
+
+
+
+// If the given ancestor is the direct anscestor, there are no anscestors in between,
+// and every ancestor of the given ancestor is also an anscestor.
 lemma DirectAncestorLemma(ancestor:nat, i : nat)
     requires DirectAncestor(ancestor, i)
     ensures forall j :: ancestor < j < i ==> !AncestorIndex(j, i)  
-    ensures forall j :: 0 <= j < i && j != ancestor ==> (AncestorIndex(j, i) ==> AncestorIndex(j, ancestor))
+    ensures forall j :: 0 <= j < i && j != ancestor ==>
+        (AncestorIndex(j, i) ==> AncestorIndex(j, ancestor))
+ {
+    assert forall j :: ancestor < j < i ==> !AncestorIndex(j, i);
 
+    var j0 := 0;
 
+    while j0 < i
+        invariant forall j :: 0 <= j < j0 && j != ancestor ==>  (AncestorIndex(j, i) ==> AncestorIndex(j, ancestor))
+        decreases i - j0
+        {
+            if AncestorIndex(j0, i) && j0 != ancestor{
+                LemmaMutualAncestors(j0, ancestor, i);
 
-method GetAncestorIndex(i : nat) returns (j : nat)
-    requires i >= 1
-    ensures j < i
-    ensures AncestorIndex(j, i)
-{
-    j := ((i - 1) as real / 2 as real).Floor as nat;
+                assert AncestorIndex(j0, ancestor);
+            }
+            else
+            {
+                // a ==> y && !a is true
+            }
+            j0 := j0 + 1;
+        }
+
+    assert forall j :: 0 <= j < i && j != ancestor ==>
+        (AncestorIndex(j, i) ==> AncestorIndex(j, ancestor));
 }
