@@ -52,11 +52,20 @@ method BuildBST(q: seq<int>) returns (t: Tree)
 	requires NoDuplicates(q)
 	ensures BST(t) && NumbersInTree(t) == NumbersInSequence(q)
     {
-        assert(BuildBST_Invariant(q, 0, Empty));
-        var i, t0 := 0, Empty;
+        var i, t0 := Init(q);
 
         i, t := BuildBST_Iterate(q, i, t0);
         StrengthenPost_BuildBST_Iterate(q, i, t);
+    }
+
+method Init (q : seq<int>) returns (i : nat, t : Tree)
+    requires NoDuplicates(q)
+    ensures BuildBST_Invariant(q, i, t)
+    {
+
+        // Assignment
+        assert(BuildBST_Invariant(q, 0, Empty));
+        i, t := 0, Empty;
     }
 
 lemma StrengthenPost_BuildBST_Iterate(q : seq<int>, i: nat, t: Tree)
@@ -74,15 +83,41 @@ method BuildBST_Iterate(q: seq<int>, i0 :nat, t0: Tree) returns (i: nat, t:Tree)
     i := i0;
     t := t0;
         
+    // Iterate
     while i < |q|
         invariant BuildBST_Invariant(q, i, t)
         decreases |q| - i
         {
-            t := InsertBST(t, q[i]);
-            i := i + 1;
+            i, t := InesrtionLoopBody(q, i, t);
         }
     
 }
+
+method InesrtionLoopBody(q : seq<int>, i0 : nat, t0: Tree) returns (i : nat, t: Tree)
+    requires NoDuplicates(q)
+    requires BuildBST_Invariant(q, i0, t0)
+    ensures BuildBST_Invariant(q, i, t)
+    requires i0 < |q|
+    ensures i > i0
+    {
+        t := InsertBST(t0, q[i0]);
+
+        // Assignment
+        LemmaInsertionLoopBody(q, t0, t, i0);
+        i := i0 + 1;
+
+    }
+
+lemma LemmaInsertionLoopBody(q : seq<int>, t0: Tree, t:Tree, i0 : nat)
+    requires NoDuplicates(q)
+    requires BuildBST_Invariant(q, i0, t0)
+    requires i0 < |q|
+    requires BST(t)
+    requires NumbersInTree(t) == NumbersInTree(t0)+{q[i0]}
+    ensures BuildBST_Invariant(q, i0 + 1, t)
+{
+}
+
 
 predicate BuildBST_Invariant(q: seq<int>, i : nat, t: Tree)
 {
